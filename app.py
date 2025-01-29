@@ -1,7 +1,7 @@
 from streamlit as st
 from parser import extract_text_from_pdf
 from cleaner import clean_text
-from embedding import embed_text
+from embedding import embed_with_multiple_models
 from indexing import build_faiss_index
 from query_handler import handle_query
 
