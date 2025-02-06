@@ -16,6 +16,13 @@ indexer = HybridIndexer()
 
 reranker = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6v2')
 
+def expand_query(query):
+
+    prompt = f"Make the query more descriptive: {query}"
+    expanded_query = llm.predict(prompt)
+
+    return expanded_query
+
 def rerank_results(query, retrieved_docs):
 
     pairs = [(query, doc) for doc in retrieved_docs]
@@ -27,14 +34,19 @@ def rerank_results(query, retrieved_docs):
 
 def handle_query(query):
 
-    query_embedding = llm.embed_query()
-    search_results = indexer.search(query_embedding, query, top_k=5, alpha=0.7)
+    expanded_query = expand_query(query)
+
+    query_embedding = llm.embed_query(expanded_query)
+    search_results = indexer.search(query_embedding, expanded_query, top_k=5, alpha=0.7)
 
     retrieved_docs = [doc for doc, _ in search_results]
-    reranked_docs = rerank_results(query, retrieved_docs)
+    reranked_docs = rerank_results(expanded_query, retrieved_docs)
 
     retriever = FAISS.load_local("faiss_index_path", llm)
 
     qa_chain = RetrievalQA(retriever=retriever, llm=llm)
+
+    sources = [doc[:100] for doc in reranked_docs[:3]]
+    final_response = f"**Response:** {response}\n\n**Sources**\n-" + "\n-".join(sources)
 
     return qa_chain.run(reranked_docs[0])
