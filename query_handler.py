@@ -4,6 +4,7 @@ from langchain.chat_models import AzureChatOpenAI
 from config import AZURE_OPENAI_API_KEY, AZURE_OPENAI_ENDPOINT, AZURE_DEPLOYMENT_NAME
 from indexing import HybridIndexer
 from sentence_transformers import CrossEncoder
+import json
 
 llm = AzureChatOpenAI(
     deployment_name=AZURE_DEPLOYMENT_NAME,
@@ -15,6 +16,8 @@ llm = AzureChatOpenAI(
 indexer = HybridIndexer()
 
 reranker = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6v2')
+
+FEEDBACK_FILE = "feedback_log.json"
 
 def expand_query(query):
 
@@ -46,7 +49,36 @@ def handle_query(query):
 
     qa_chain = RetrievalQA(retriever=retriever, llm=llm)
 
-    sources = [doc[:100] for doc in reranked_docs[:3]]
-    final_response = f"**Response:** {response}\n\n**Sources**\n-" + "\n-".join(sources)
+    response = qa_chain.run(reranked_docs[0])
 
-    return qa_chain.run(reranked_docs[0])
+    sources = [f"{doc[:100]}..." for doc in reranked_docs[:3]]
+    
+    markdown_response = f"""
+    ###Response:
+    {response}
+
+    ###Sources:
+    {"\n".join(sources)}
+    """
+    return markdown_response
+
+def save_feedback(query, response, feedback):
+    
+    feedback_entry = {
+        "query": query,
+        "response": response,
+        "feedback": feedback
+    }
+
+    try:
+        with open(FEEDBACK_FILE, "r") as f:
+            data = json.load(f)
+    except FileNotFoundError:
+        data = []
+
+    data.append(feedback_entry)
+
+    with open(FEEDBACK_FILE, "w") as f:
+        json.dump(data, f, indent=4)
+
+    return "Your feedback has been recorded."          
