@@ -1,4 +1,3 @@
-from langchain.chains import RetrievalQA
 from langchain.chains import ConversationalRetrievalChain
 from langchain.vectorstores import FAISS
 from langchain.chat_models import AzureChatOpenAI
@@ -7,6 +6,7 @@ from config import AZURE_OPENAI_API_KEY, AZURE_OPENAI_ENDPOINT, AZURE_DEPLOYMENT
 from indexing import HybridIndexer
 from sentence_transformers import CrossEncoder
 import json
+import re
 
 llm = AzureChatOpenAI(
     deployment_name=AZURE_DEPLOYMENT_NAME,
@@ -38,6 +38,24 @@ def rerank_results(query, retrieved_docs):
 
     return [doc for doc, _ in ranked_results]
 
+def split_sentences(text):
+   
+    return re.split(r'(?<=[.!?]) +', text)
+
+def verify_sentence_with_sources(sentence, sources):
+
+    verification_prompt = f"""Can you verify the following sentence according to the given sources?
+
+    Sentence: {sentence}
+    Sources: {sources[0][:500]}
+
+    If the sentence can be verified, write 'Verified'. 
+    If this information is not found in the sources, write 'False Information'.
+    """ 
+    verification_result = llm.predict(verification_prompt)
+
+    return verification_result.strip()
+
 def handle_query(query):
 
     expanded_query = expand_query(query)
@@ -62,21 +80,20 @@ def handle_query(query):
 
     response = conversation_chain({"question": query})
 
-    verification_prompt = f"""Can this answer be substantiated by documentation?
-    Response: {response}
-    Documents: {reranked_docs[0][:500]}
-    """
+    sentences = split_sentences(response['answer'])
+    verified_sentences = [f"{sentence} → {verify_sentence_with_sources(sentence, reranked_docs)}" for sentence in sentences]
 
-    verification_result = llm.predict(verification_prompt)
+    correct_count = sum(1 for s in verified_sentences if "Verified" in s)
+    total_sentences = len(verified_sentences)
+    accuracy = (correct_count / total_sentences) * 100 if total_sentences > 0 else 0 
 
-    if "I am not sure" in verification_result or "Not based on sources" in verification_result:
-        return "**This information could not be found in the sources. Can you ask it in a different way?**"
-    
     sources = [f"{doc[:100]}..." for doc in reranked_docs[:3]]
-    
+
     markdown_response = f"""
-    ###Response:
-    {response}
+    ###Response: 
+    {'\n'.join(verified_sentences)}
+
+    **Accuracy Score: {accuracy:.2f}%**
 
     ###Sources:
     {"\n".join(sources)}
