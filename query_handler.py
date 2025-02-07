@@ -8,6 +8,9 @@ from sentence_transformers import CrossEncoder
 import json
 import re
 import sqlite3
+import pandas as pd
+import matplotlib.pyplot as plt
+import datetime
 
 llm = AzureChatOpenAI(
     deployment_name=AZURE_DEPLOYMENT_NAME,
@@ -72,6 +75,73 @@ def analyze_feedback():
         report += f"Soru: {row[0]}\nGeri Bildirim: {row[1]}\nTekrar Sayısı: {row[2]}\n\n"
 
     return report 
+
+def get_feedback_data():
+
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("SELECT query, feedback, timestamp FROM feedback")    
+    data = cursor.fetchall()
+    conn.close()
+
+    return pd.DataFrame(data, columns=["query", "feedback", "timestamp"])
+
+def plot_feedback_distribution():
+    
+    df = get_feedback_data()
+
+    if df.empty:
+        print("There is no feedback data yet.")
+        return
+
+    feedback_counts = df["feedback"].value_counts
+
+    plt.figure(figsize=(8, 5))
+    feedback_counts.plot(kind="bar", color=["green", "red"])
+    plt.xlabel("Type of Feedback")
+    plt.ylabel("Piece")
+    plt.title("Distribution of Feedback")
+    plt.xticks(rotation=45)
+    plt.show()
+
+def plot_most_problematic_queries():
+
+    df = get_feedback_data()
+    
+    if df.empty:
+        print("There is no feedback data yet.")
+        return
+
+    problematic_queries = df[df["feedback"] == "Wrong"].groupby("query").count().sort_values("feedback", ascending=False)
+    
+    plt.figure(figsize=(10, 5))
+    problematic_queries["feedback"][:10].plot(kind="bar", color="red")
+    plt.xlabel("Question")
+    plt.ylabel("Number of Wrong Feedback")
+    plt.title("Questions Most Commonly Answered Wrongly")
+    plt.xticks(rotation=45)
+    plt.show()
+
+def plot_feedback_over_time():
+    
+    df = get_feedback_data()
+
+    if df.empty:
+        print("There is no feedback data yet.")
+        return
+
+    df["timestamp"] = pd.to_datetime(df["timestamp"])
+    df.set_index("timestamp", inplace=True)
+
+    feedback_over_time = df.resample("D").count()["feedback"]
+
+    plt.figure(figsize=(10, 5))
+    feedback_over_time.plot(kind="line", marker="o", linestyle="-", color="blue")
+    plt.xlabel("Time")
+    plt.ylabel("Number of Feedback")
+    plt.title("Feedback Distribution Over Time ")
+    plt.grid()
+    plt.show()   
 
 def expand_query(query):
 
