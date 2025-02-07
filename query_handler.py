@@ -43,6 +43,10 @@ def handle_query(query):
     search_results = indexer.search(query_embedding, expanded_query, top_k=5, alpha=0.7)
 
     retrieved_docs = [doc for doc, _ in search_results]
+
+    if not retrieved_docs:
+        return "**I don't have that information. Can you ask it in a different way?**"
+
     reranked_docs = rerank_results(expanded_query, retrieved_docs)
 
     retriever = FAISS.load_local("faiss_index_path", llm)
@@ -51,6 +55,16 @@ def handle_query(query):
 
     response = qa_chain.run(reranked_docs[0])
 
+    verification_prompt = f"""Can this answer be substantiated by documentation?
+    Response: {response}
+    Documents: {reranked_docs[0][:500]}
+    """
+
+    verification_result = llm.predict(verification_prompt)
+
+    if "I am not sure" in verification_result or "Not based on sources" in verification_result:
+        return "**This information could not be found in the sources. Can you ask it in a different way?**"
+    
     sources = [f"{doc[:100]}..." for doc in reranked_docs[:3]]
     
     markdown_response = f"""
