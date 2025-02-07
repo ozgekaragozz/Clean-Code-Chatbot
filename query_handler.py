@@ -7,6 +7,7 @@ from indexing import HybridIndexer
 from sentence_transformers import CrossEncoder
 import json
 import re
+import sqlite3
 
 llm = AzureChatOpenAI(
     deployment_name=AZURE_DEPLOYMENT_NAME,
@@ -20,7 +21,57 @@ indexer = HybridIndexer()
 
 reranker = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6v2')
 
-FEEDBACK_FILE = "feedback_log.json"
+DB_FILE = "feedback.db"
+
+def init_db():
+
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS feedback(7
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            query TEXT,
+            response TEXT,
+            feedback TEXT,
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+
+    conn.commit()
+    conn.close()
+
+def save_feedback(query, response, feedback):
+
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute('''
+        INSERT INTO feedback (query, response, feedback)
+        VALUES (?, ?, ?)
+    ''', (query, response, feedback))
+
+    conn.commit()
+    conn.close()
+    return "Your feedback has been recorded."  
+
+def analyze_feedback():
+
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT query, feedback, COUNT(*) as count
+        FROM feedback
+        GROUP BY query, feedback
+        ORDER BY count DESC
+    ''')
+
+    results = cursor.fetchall()
+    conn.close()
+
+    report = "Analysis of Feedback:\n"
+    for row in results:
+        report += f"Soru: {row[0]}\nGeri Bildirim: {row[1]}\nTekrar Sayısı: {row[2]}\n\n"
+
+    return report 
 
 def expand_query(query):
 
@@ -100,23 +151,4 @@ def handle_query(query):
     """
     return markdown_response
 
-def save_feedback(query, response, feedback):
-    
-    feedback_entry = {
-        "query": query,
-        "response": response,
-        "feedback": feedback
-    }
-
-    try:
-        with open(FEEDBACK_FILE, "r") as f:
-            data = json.load(f)
-    except FileNotFoundError:
-        data = []
-
-    data.append(feedback_entry)
-
-    with open(FEEDBACK_FILE, "w") as f:
-        json.dump(data, f, indent=4)
-
-    return "Your feedback has been recorded."          
+init_db()    
