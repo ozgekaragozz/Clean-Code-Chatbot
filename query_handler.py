@@ -1,6 +1,8 @@
 from langchain.chains import RetrievalQA
+from langchain.chains import ConversationalRetrievalChain
 from langchain.vectorstores import FAISS
 from langchain.chat_models import AzureChatOpenAI
+from langchain.memory import ConversationBufferMemory
 from config import AZURE_OPENAI_API_KEY, AZURE_OPENAI_ENDPOINT, AZURE_DEPLOYMENT_NAME
 from indexing import HybridIndexer
 from sentence_transformers import CrossEncoder
@@ -12,6 +14,7 @@ llm = AzureChatOpenAI(
     openai_api_base=AZURE_OPENAI_ENDPOINT,
     openai_api_version=AZURE_OPENAI_API_VERSION,
 )
+memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
 
 indexer = HybridIndexer()
 
@@ -51,9 +54,13 @@ def handle_query(query):
 
     retriever = FAISS.load_local("faiss_index_path", llm)
 
-    qa_chain = RetrievalQA(retriever=retriever, llm=llm)
+    conversation_chain = ConversationalRetrievalChain.from_llm(
+        llm=llm,
+        retriever=retriever.as_retriever(),
+        memory=memory
+    )
 
-    response = qa_chain.run(reranked_docs[0])
+    response = conversation_chain({"question": query})
 
     verification_prompt = f"""Can this answer be substantiated by documentation?
     Response: {response}
