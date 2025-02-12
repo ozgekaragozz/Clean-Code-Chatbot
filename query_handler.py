@@ -27,7 +27,24 @@ reranker = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6v2')
 
 similarity_model = SentenceTransformer("all-MiniLM-L6-v2")
 
+vector_memory = FAISS.load_local("vector_memory_index") if FAISS.index_exists("vector_memory_index") else FAISS.IndexFlatL2(384)
+
 DB_FILE = "feedback.db"
+
+def add_to_memory(query, response):
+
+    text = f"Question: {query}\nAnswer: {response}"
+    embedding = similarity_model.encode([text])
+    vector_memory.add(np.array(embedding, dtype=np.float32))
+
+    FAISS.write_index(vector_memory, "vector_memory_index")
+    
+def search_memory(query, top_k=3):
+
+    query_embedding = similarity_model.encode([query])
+    D, I = vector_memory.search(np.array(query_embedding, dtype=np.float32), top_k)
+
+    return [vector_memory.reconstruct(i) for i in I[0] if i != -1]
 
 def init_db():
 
@@ -194,10 +211,14 @@ def handle_query(query):
 
     expanded_query = expand_query(query)
 
-    query_embedding = llm.embed_query(expanded_query)
-    search_results = indexer.search(query_embedding, expanded_query, top_k=5, alpha=0.7)
+    past_conservations = search_memory(expanded_query, top_k=3)
 
-    retrieved_docs = [doc for doc, _ in search_results]
+    if past_conversations:
+        retrieved_docs = past_conversations
+    else:
+        query_embedding = llm.embed_query(expanded_query)
+        search_results = indexer.search(query_embedding, expanded_query, top_k=5, alpha=0.7)
+        retrieved_docs = [doc for doc, _ in search_results]
 
     if not retrieved_docs:
         return "**I don't have that information. Can you ask it in a different way?**"
@@ -215,6 +236,8 @@ def handle_query(query):
     )
 
     response = conversation_chain({"question": query})
+
+    add_to_memory(expanded_query, response['answer'])
 
     sentences = split_sentences(response['answer'])
     verified_sentences = [f"{sentence} → {verify_sentence_with_sources(sentence, reranked_docs)}" for sentence in sentences]
