@@ -1,7 +1,7 @@
 from langchain.chains import ConversationalRetrievalChain
 from langchain.vectorstores import FAISS
 from langchain.chat_models import AzureChatOpenAI
-from langchain.memory import ConversationBufferMemory
+from langchain.memory import ConversationSummaryMemory
 from config import AZURE_OPENAI_API_KEY, AZURE_OPENAI_ENDPOINT, AZURE_DEPLOYMENT_NAME
 from indexing import HybridIndexer
 from sentence_transformers import CrossEncoder, SentenceTransformer
@@ -19,7 +19,7 @@ llm = AzureChatOpenAI(
     openai_api_base=AZURE_OPENAI_ENDPOINT,
     openai_api_version=AZURE_OPENAI_API_VERSION,
 )
-memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
+memory = ConversationSummaryMemory(memory_key="chat_history", return_messages=True)
 
 indexer = HybridIndexer()
 
