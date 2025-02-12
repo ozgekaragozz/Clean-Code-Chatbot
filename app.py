@@ -32,7 +32,7 @@ def initialize_system(pdf_path):
     embeddings = embedder.hybrid_embedding(all_texts)
 
     indexer = HybridIndexer()
-    indexer.build_faiss_index(embeddings["dense"]['all-MiniLM-L6-v2'])  # Ana model olarak MiniLM kullanıyoruz
+    indexer.build_faiss_index(embeddings["dense"]['all-MiniLM-L6-v2'])
     indexer.build_tfidf_index(all_texts)
 
     return indexer, all_texts

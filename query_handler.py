@@ -4,13 +4,14 @@ from langchain.chat_models import AzureChatOpenAI
 from langchain.memory import ConversationBufferMemory
 from config import AZURE_OPENAI_API_KEY, AZURE_OPENAI_ENDPOINT, AZURE_DEPLOYMENT_NAME
 from indexing import HybridIndexer
-from sentence_transformers import CrossEncoder
+from sentence_transformers import CrossEncoder, SentenceTransformer
 import json
 import re
 import sqlite3
 import pandas as pd
 import matplotlib.pyplot as plt
 import datetime
+import numpy as np
 
 llm = AzureChatOpenAI(
     deployment_name=AZURE_DEPLOYMENT_NAME,
@@ -23,6 +24,8 @@ memory = ConversationBufferMemory(memory_key="chat_history", return_messages=Tru
 indexer = HybridIndexer()
 
 reranker = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6v2')
+
+similarity_model = SentenceTransformer("all-MiniLM-L6-v2")
 
 DB_FILE = "feedback.db"
 
@@ -157,7 +160,17 @@ def rerank_results(query, retrieved_docs):
 
     ranked_results = sorted(zip(retrieved_docs, scores), key=lambda x: x[1], reverse=True)
 
-    return [doc for doc, _ in ranked_results]
+    return [doc for doc, _ in ranked_results][:5]
+
+def filter_top_docs_with_similarity(query, top_docs):
+
+    query_embedding = similarity_model.encode([query])
+    doc_embeddings = similarity_model.encode(top_docs)
+
+    similarities = np.dot(doc_embeddings, query_embedding.T).flatten()
+    sorted_indices = np.argsort(similarities)[::-1][:3]
+
+    return [top_docs[i] for i in sorted_indices]
 
 def split_sentences(text):
    
@@ -189,7 +202,9 @@ def handle_query(query):
     if not retrieved_docs:
         return "**I don't have that information. Can you ask it in a different way?**"
 
-    reranked_docs = rerank_results(expanded_query, retrieved_docs)
+    top_5_docs = rerank_results(expanded_query, retrieved_docs)
+    
+    final_docs = filter_top_docs_with_similarity(expanded_query, top_5_docs)
 
     retriever = FAISS.load_local("faiss_index_path", llm)
 
