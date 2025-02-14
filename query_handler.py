@@ -81,6 +81,19 @@ def save_feedback(query, response, feedback):
     conn.close()
     return "Your feedback has been recorded."  
 
+def get_wrong_answers(query):
+
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT response FROM feedback WHERE query = ? AND feedback = 'Wrong'
+    
+    ''', (query, ))
+    wrong_answers = cursor.fetchall()
+    conn.close()
+
+    return [answer[0] for answer in wrong_answers]
+
 def analyze_feedback():
 
     conn = sqlite3.connect(DB_FILE)
@@ -221,8 +234,23 @@ def handle_query(query):
 
     expanded_query = expand_query(query)
 
-    past_conversations = search_memory(expanded_query, top_k=3)
+    wrong_answers = get_wrong_answers(expanded_query)
 
+    if wrong_answers:
+        wrong_response_text = "\n".join(wrong_answers)
+        correction_prompt = f"""
+        The following question was asked by the user and has been answered incorrectly in the past:
+        Question: "{expanded_query}"
+
+        Previous incorrect answers:
+        {wrong_response_text}
+
+        Please avoid these mistakes and create a more accurate and descriptive answer.
+        """
+        expanded_query = llm.predict(correction_prompt).strip()
+
+    past_conversations = search_memory(expanded_query, top_k=3)
+    
     if past_conversations:
         retrieved_docs = past_conversations
     else:
