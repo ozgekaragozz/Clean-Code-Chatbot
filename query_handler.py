@@ -5,13 +5,12 @@ from langchain.memory import ConversationSummaryMemory
 from config import AZURE_OPENAI_API_KEY, AZURE_OPENAI_ENDPOINT, AZURE_DEPLOYMENT_NAME
 from indexing import HybridIndexer
 from sentence_transformers import CrossEncoder, SentenceTransformer
-import json
 import re
 import sqlite3
 import pandas as pd
 import matplotlib.pyplot as plt
-import datetime
 import numpy as np
+import os 
 
 llm = AzureChatOpenAI(
     deployment_name=AZURE_DEPLOYMENT_NAME,
@@ -27,7 +26,12 @@ reranker = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6v2')
 
 similarity_model = SentenceTransformer("all-MiniLM-L6-v2")
 
-vector_memory = FAISS.load_local("vector_memory_index") if FAISS.index_exists("vector_memory_index") else FAISS.IndexFlatL2(384)
+vector_memory_path = "vector_memory_index"
+
+if os.path.exists(vector_memory_path):
+    vector_memory = FAISS.read_index(vector_memory_path)
+else:
+    vector_memory = FAISS.IndexFlatL2(384)   
 
 DB_FILE = "feedback.db"
 
@@ -211,7 +215,7 @@ def handle_query(query):
 
     expanded_query = expand_query(query)
 
-    past_conservations = search_memory(expanded_query, top_k=3)
+    past_conversations = search_memory(expanded_query, top_k=3)
 
     if past_conversations:
         retrieved_docs = past_conversations
@@ -240,7 +244,7 @@ def handle_query(query):
     add_to_memory(expanded_query, response['answer'])
 
     sentences = split_sentences(response['answer'])
-    verified_sentences = [f"{sentence} → {verify_sentence_with_sources(sentence, reranked_docs)}" for sentence in sentences]
+    verified_sentences = [f"{sentence} → {verify_sentence_with_sources(sentence, final_docs)}" for sentence in sentences]
 
     correct_count = sum(1 for s in verified_sentences if "Verified" in s)
     total_sentences = len(verified_sentences)

@@ -44,10 +44,10 @@ st.title("Clean Code Chatbot")
 
 user_query = st.text_input("Enter the your question.")
 
-if st.button():
+if st.button('Ask'):
     
     if user_query:
-        response  = handle_query(user_query, index, segments)
+        response  = handle_query(user_query)
         st.write("Answer: ")
         st.write(response)
 

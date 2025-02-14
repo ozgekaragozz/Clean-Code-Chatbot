@@ -24,7 +24,7 @@ class HybridEmbedder:
         dense_results = self.embed_with_dense_models(texts)
         sparse_results = self.embed_with_sparse_model(texts)   
 
-        return = {
+        return  {
             "dense": dense_results,
             "sparse": sparse_results
         }
