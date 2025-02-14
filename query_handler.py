@@ -11,6 +11,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 import os 
+import json
 
 llm = AzureChatOpenAI(
     deployment_name=AZURE_DEPLOYMENT_NAME,
@@ -169,10 +170,15 @@ def plot_feedback_over_time():
 
 def expand_query(query):
 
-    prompt = f"Make the query more descriptive: {query}"
+    prompt = f"""
+    User asked the following question:
+    "{query}"
+
+    Expand this query to make it more detailed and meaningful. Edit it to help better understand the user's real intent.
+    """
     expanded_query = llm.predict(prompt)
 
-    return expanded_query
+    return expanded_query if expanded_query else query
 
 def rerank_results(query, retrieved_docs):
 
