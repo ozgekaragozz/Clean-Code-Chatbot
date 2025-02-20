@@ -1,7 +1,7 @@
 from langchain.chains import ConversationalRetrievalChain
 from langchain.vectorstores import FAISS
 from langchain.chat_models import AzureChatOpenAI
-from langchain.memory import ConversationSummaryMemory
+from langchain.memory import ConversationSummaryMemory, ConversationBufferMemory
 from config import AZURE_OPENAI_API_KEY, AZURE_OPENAI_ENDPOINT, AZURE_DEPLOYMENT_NAME
 from indexing import HybridIndexer
 from sentence_transformers import CrossEncoder, SentenceTransformer
@@ -230,8 +230,30 @@ def verify_sentence_with_sources(sentence, sources):
 
     return verification_result.strip()
 
+def check_query_clarity(query):
+    
+    clarity_prompt = f"""
+    User asked: "{query}"
+
+    Before answering, determine if the question is clear and specific.
+    If the question is vague, return a clarification question to ask the user for more details.
+    If the question is clear, return 'CLEAR'.
+    """
+
+    clarification_response = llm.predict(clarity_prompt).strip()
+
+    if clarification_response and clarification_response != "CLEAR":
+        return clarification_response
+
+    return None    
+
 def handle_query(query):
 
+    clarification_needed = check_query_clarity(query)
+
+    if clarification_needed:
+        return f"{clarification_needed}"
+        
     expanded_query = expand_query(query)
 
     wrong_answers = get_wrong_answers(expanded_query)
@@ -250,7 +272,7 @@ def handle_query(query):
         expanded_query = llm.predict(correction_prompt).strip()
 
     past_conversations = search_memory(expanded_query, top_k=3)
-    
+
     if past_conversations:
         retrieved_docs = past_conversations
     else:
