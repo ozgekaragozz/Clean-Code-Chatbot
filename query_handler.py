@@ -247,6 +247,18 @@ def check_query_clarity(query):
 
     return None    
 
+def suggest_follow_up_questions(query):
+
+    suggestion_prompt = f"""
+    User asked: "{query}"
+
+    Based on this question, suggest related topics that the user might find useful.
+    Provide a short list of related questions that the user can ask next.
+    """
+    suggestions = llm.predict(suggestion_prompt).strip()    
+
+    return suggestions if suggestions else None
+
 def handle_query(query):
 
     clarification_needed = check_query_clarity(query)
@@ -308,6 +320,9 @@ def handle_query(query):
 
     sources = [f"{doc[:100]}..." for doc in reranked_docs[:3]]
 
+    follow_up_suggestions = suggest_follow_up_questions(expanded_query)
+    follow_up_text = f"\n\n**Related questions you might find useful:**\n{follow_up_suggestions}" if follow_up_suggestions else""
+
     markdown_response = f"""
     ###Response: 
     {'\n'.join(verified_sentences)}
@@ -316,6 +331,8 @@ def handle_query(query):
 
     ###Sources:
     {"\n".join(sources)}
+
+    {follow_up_text}
     """
     return markdown_response
 
