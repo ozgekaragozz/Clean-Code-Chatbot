@@ -323,17 +323,20 @@ def handle_query(query):
     follow_up_suggestions = suggest_follow_up_questions(expanded_query)
     follow_up_text = f"\n\n**Related questions you might find useful:**\n{follow_up_suggestions}" if follow_up_suggestions else""
 
+    joined_verified = "\n".join(verified_sentences)
+    sources_text = "\n".join(sources)
+ 
     markdown_response = f"""
     ###Response: 
-    {'\n'.join(verified_sentences)}
+    {joined_verified}
 
     **Accuracy Score: {accuracy:.2f}%**
 
     ###Sources:
-    {"\n".join(sources)}
+    {sources_text}
 
-    {follow_up_text}
-    """
+    {follow_up_text} """
+
     return markdown_response
 
 init_db()    

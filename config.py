@@ -1,7 +1,8 @@
 import os
 from dotenv import load_dotenv
+from pathlib import Path 
 
-load_dotenv()
+load_dotenv(dotenv_path=Path('.') / '.env')
 
 AZURE_OPENAI_API_KEY = os.getenv("AZURE_OPENAI_API_KEY")
 AZURE_DEPLOYMENT_NAME = os.getenv("AZURE_DEPLOYMENT_NAME")
